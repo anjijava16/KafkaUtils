@@ -1,4 +1,9 @@
- source 'create-timeseries.cql';
+
+URL : Kafka Documenation : https://kafka.apache.org/documentation/
+
+
+
+source 'create-timeseries.cql';
  
  Kafka Componets
  i)Producers (publishers records to the topics in kafka)
