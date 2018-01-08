@@ -1,0 +1,28 @@
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import org.apache.spark.sql.SparkSession
+
+
+object SQLContextSaveUtils {
+  def main(args: Array[String]): Unit = {
+    
+    
+    
+    val conf: SparkConf = new SparkConf().setAppName("Spark SQL with Student.json Data UDF ").setMaster("local[*]")
+    val sc: SparkContext = new SparkContext(conf)
+    val sqlContext: SQLContext = new org.apache.spark.sql.SQLContext(sc)
+    //  val session1= SparkSession.builder().appName("Spark Hive Example").enableHiveSupport().getOrCreate();
+    
+    
+    val df = sqlContext.read.json("file:///home/hadoop/Desktop/data/input/student.json")
+    val formatter: SimpleDateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+    val formattedDate: String = formatter.format(new Date())
+   //df.write.option("header", "true").csv("/home/hadoop/Desktop/data/input_"+formattedDate+"/")
+   df.write.option("header", "true").mode("overwrite").csv("/home/hadoop/Desktop/data/input/ops/");
+  //  df.write.option("","").mode(saveMode);
+    
+  }
+}
