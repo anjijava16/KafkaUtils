@@ -2,6 +2,8 @@
 URL : Kafka Documenation : https://kafka.apache.org/documentation/
 
 
+https://www.learningjournal.guru/courses/kafka/kafka-foundation-training/
+
 
 source 'create-timeseries.cql';
  
