@@ -1,0 +1,515 @@
+
+val spark = SparkSession.builder().appName("Spark Bucket By Example").master("local").config("hive.enforce.bucketing", "true").config("spark.sql.autoBroadcastJoinThreshold", "-1").getOrCreate()
+
+
+################## Daily works ###################
+
+val hiveContext=SparkSession.builder().appName("Spark Hive Example").enableHiveSupport().getOrCreate()
+hiveContext.sql("use iwinnerdb");
+spark.sql("show tables").show(10)
+val df=spark.sql("select * from customers");
+df.printSchema()
+val groupByCustomerName= df.select("customer_id","customer_fname").groupBy("customer_fname").agg(count("customer_fname"))
+
+
+##############################################
+
+Kafka Partition :
+Topic Divivded into no.of partition .
+Partition allow you to parallelize a topic by spliting the data in a particular topic across multiple brokers.
+Each partition can be placed on a separate machine to allow for multiple consumers to read from a topic in parallel
+
+Topic : A particular Stream of data
+     Similar to a table in a database
+	 You can have as many topic by we want
+	 A topic is identified by its name
+Topic : Topics are split in Partitions
+         Each Partition is Ordered
+		 Each Message within a partition gets an incremental id called as offset
+		 
+		 PartitionID   OffSetID
+		 partition 0  0,1,2,3,4,
+		 partition 1  0,1,2,3,4,
+		 partition 2  0,1,2,3,4,
+		 
+		 
+OffSet only have a meaning for a specific partition
+   once data is written to a partition it can't be changed (immutablity)
+   Data is assigned randomly to partition unless a key is provided more on this later
+   OffSet only have meaning for specific partition
+   Order is guaranteed only within aparition
+   Data is Kept only for a limited time
+   
+   
+   A kafka Cluster is composed of multiple brokers(servers)
+   Each Broker is idenitified with ID (int)
+   Each broker contains certain topic partiitons
+   After Connecting to any broker(bootstrap broker) we will connect entire cluster
+   A good Number to get Started is 3 brokers
+   
+   Example Topic-A with 3 Partitions
+   Example Topic-B with 2 paritions
+   Broker-101   Broker -102                Broker-103
+ Note: Data is Distributed and broker 103 doesn't have any topic-b data
+ 
+ 
+ kafka is Distributed System
+ 
+ Usally Replication factor (2 or 3)
+ This is way if broker is down,another broker can server the data
+ 
+ Conecpts of Leader for Partition
+ At any time only One Broker can be a leader for given partiiton
+ Only that Leader can receive and server data for parition
+ The other broker will synchronize the data
+ Therfore each partition has one leader and multiple ISR(in-Sync replica)
+ ===============================
+ Producers write data to topics(Which made of partitions)
+ Producers automatically know to which broker and partiiton to write to
+ IN Case of broker failuers ,Producers will automatically recorver
+ 
+ 
+ Producers can choose to recevie acknolwedgment of data writes
+   acks=0 (Producers won't wait for acknolwedgement (possible data loss)
+   acks=1(Producer will wait for leader acknolwedgemnt(limited data loss)
+   acks=all (Leader + replicas acknowledgement (no data loss)
+   
+   
+   Producer can choose to send  key with the message (String,number etc)
+   if key =null,data is sent round robin (broker 101,102 or 103)
+   if a Key is sent ,then all messages for that key will always go the same partition
+   if key is basically sent if you need message ordering for a specific field(ex:truck_id)
+   
+   We get this gurantee thanks to key hashing which depends on the nuber of paritions
+   
+   ==========================================================================================
+   
+   Consumers::
+   
+   Consumer read data from a topic (identified by name)
+   Consumer know which broker to read from
+   In Case of broker failures,consumers know how to recover
+   Data is read in order within each parititions
+   
+   
+   Consumer Groups
+   Consumer read data in Consumer groups
+   Each Consumer within a group reads from exclusive partitions
+   If you have more consumes than partiitons,some consumers will be inactive
+   
+   Consumers will automatically use a GroupCoordinator and ConsumerCoordinator to assign a consumers to a patition
+   
+   
+   Consumer OffSets
+   
+   Kafka Stores the offsets at which a consumer group has been reading
+   The offse committed live in kafka topic names __consumer_offsets
+   When a consumer in a group has processed data received from kafka.it should be committing the offsets.
+   
+   3 Delivery Semantics(Consumer choose when to committ offsets)
+     At most once:
+	   offsets  are commmitted as soon as the message is received
+	   
+	   
+	   
+Every Kafka broker is also called bootStrap server
+means that you only need to connect to one broker and you will be connected to the enitre cluster
+Each broker knows about all brokers,topics and partiitons
+
+
+Zookeepr manages brokers
+Zookeeper helps in performing leader election for parittions
+Zookepers sends notification to kafka in case of chnages 
+Zookepers by desing operates with an odd number of servers(3,5,7)
+Zookerpers has a leader handle writes the rest of the servers are followers
+zookerpers does not store consumer offsets with kafka > V0.10
+
+
+Messages are appened to topic-pariitons in the order they sent
+Consumers read messages in the order stored in a topic-partitions
+
+As long as the number of paritions remains constants for topic(no new partitions) the same key will always go the same pariitons
+
+		
+
+Topics
+Partiitons
+Replication
+ParitionsLeader & InSyncReplicaton (ISR)
+OffSet Topic
+
+Source ==>Producers
+
+            round robin ,
+			+Key Based ordering,
+			+acks strategy)
+
+Consumers ===> 
+              consumers offsets
+			  Consumers groups
+			  at least once
+			  at most once
+Zookeper ==>
+             leader follower
+			 broker manangement
+   
+   
+   
+Note:
+  OffSet is relaevant at the level of topic-partiitons
+  Once sent a topic can't be modified it is immutable
+  
+  2 Consumer have the same group Id(consumer.group id) will read from mutually exclusive paritions
+  
+  
+  kafka-consloe-producer --broker-list 9092 --topic first_topic --producer-property acks=all
+  kafka-consloe-producer --broker-list 9092 --topic new_topic (Automatically created paritition not exists also)
+  
+ 
+ 
+ Kafka-console-consumer --bootstartp-serer 127.0.0.1:9092 --topic first_topic --group my_first_applicaion
+ 
+ if you using same group id is spliting 2 groups
+ 
+ 
+ Kafka-console-consumer --bootstartp-serer 127.0.0.1:9092 --topic first_topic --group my_second_applicaion  --from-begininng
+ 
+ Kafka-console-consumer --bootstartp-serer 127.0.0.1:9092 --topic first_topic --group my_second_applicaion  --from-begininng
+ 
+ kafka-consumer-groups
+ =============================
+ kafka-consumer-groups --bootstartp-server localhost:9092 --list
+ kafka-consumer-groups --bootstartp-server localhost:9092 --describe --group my-second-application
+ kafka-consumer-groups --bootstartp-server localhost:9092 --describe --group my-first-application
+##################################################
+
+1) Create Producer config
+  bootStartup.server
+  key serilaizer: StringSerilalizer.class.getName()
+  value serilazer:StringSerilalizer.class.getName()
+  
+  (OR)
+  props.setPropery(ProdicerConfig.BOOTSTrtAUPServerConfig
+  props.setPropery(ProducerConfig.KEY_SER_CLASS_CONFIG,
+  props.setPropery(ProducerConfig.VALUE_SER_CLASS_CONFIG,
+  
+2) Create producer
+  KafkaProducer<String,String> producer=new KafkaProducer<String,String>(properties);
+  
+3) Send the data
+        //Create Producer Record
+		ProducerRecord<String,String> record=new ProducerRecord<String,String>("my_topic_name","Message")
+		
+// Send data asynchronus    
+producer.send()
+
+producer.send()
+producer.flush()
+
+
+### Callback
+
+producer.send(record,new Callback(){
+#Execute every time record is successfully 
+if(e!=null){
+  # Record successfully sent
+
+
+AutoOffSet_REST_CONFIG 3 parameters: earliest/latest/none
+
+//Create Consumer Config
+
+// Create consumer
+
+// Subscribe consumer to our topic's
+consumer.subscribe(Arrays.asList("",""))
+
+// poll for new data
+
+consumer.poll(timeout:100);//new kafka 2.0.1
+
+ConsumerRecord<String,String> records= consumer.poll(Duration.ofMills(100))
+
+for(ConsumerRecord
+
+kafka-consumer-groups --bootstarp-serer localhost:9092 --group my-fourth-application --describe
+
+
+====================================================================
+If the broker goes offline exception happens,we don't know and will lose data
+
+acks=0(no acks)
+Useful fo data where it's okay to poternatiall lose messaages:
+  Metrics collection
+  Log Collection
+  
+  
+acks=1
+Leader response is requested,but replication is not gurantee (happens in the background)
+if an acks is not received,the producer may retry.
+
+acks=all(replicas acks)
+=========>>> Leader+replicas ack requested
+Added latency and safety
+No data loss if enough replicas
+
+aacks==all must be used conjuction with min.insysnc.replicas
+min.insync.replicas can be set at the broker or topic level(override)
+min.insync.replicas=2 that at least 2 brokers that ar ISR including leader must respond that they have the data
+replication.factor=3 ,min.insync=2 ,acks=all. you can only tolerate i broker going down,other wise the producer will receive an exception on send
+
+
+Producer Retries:
+ "retries " setting
+   bydefault is 0
+   you can increase to high number ex :Integer.Max_VALUE
+   
+   max.in.flight.requests.per.connection: Default 5
+   set to 1 if you need to ensure ordering
+   
+ Idempotent Producer: 
+  Here the problem: Producer can introduce duplicate messages in Kafka due to network errors.
+  
+  Idemptotent producers are great to gurantee a stable and safe pipeline
+     retries=Integer.max_value
+	 max.in.flight.requests=1
+	 max.in.flight.requests=5
+	 acks=all
+	 
+	 
+	 producer.put("enable.idempotence","all")
+	 
+Message Compression
+  Producer usally send data that is text-based for example with JSON Data
+  Then appli
+  
+  compression.type : defult NONE
+  compression.type : None or gzip,lz4,snappy
+  
+  compression is more effective the bigger the batch of message being sent to kafka
+  
+  Much smaller producer request size
+  
+  
+  Linger.ms:Number of milliseconds a producer is willing to wait before sending a batch out(default 0)
+  
+  if batch is full before the end of the linger.ms peripd it will be sent to kafka right away
+  
+  
+  ProduerMessages
+     Wait up to linger.ms (ONe Batch/One Request (max size is batch.size))
+	 Send to kafka (Compressed if enabled) 
+ batch.size: max number of bytes that will be included in a batch the default is 16KB
+ Increasing a batch size to somethting like 32KB or64KB can help increasing the compression,throughput and efficieny of requests/
+ =======================
+ By Default yours key are hashed using the murmur2 alogrthim
+ targetPartition=Utils.abs(Utils.murmur2(recod
+ 
+ if that buffer is full(32MB) then the send() method will start to block(won't return right away)
+ 
+ Max.block.ms =60000
+ 
+ 
+	 
+	 
+	 
+	 
+
+
+
+
+
+bonsai: Free Elastic Search
+
+hosebird-client-io-thread-0] INFO com.twitter.hbc.httpclient.ClientBase - Hosebird-Client-01 Processing connection data
+[main] INFO com.mmtech.kafka.twitter.TwitterProducer - {"created_at":"Tue Nov 20 11:22:06 +0000 2018","id":1064841310593372161,"id_str":"1064841310593372161","text":"Bitcoin extends slide below $4,500, new 2018 low https:\/\/t.co\/gkFIJM5xtQ (Reuters) https:\/\/t.co\/tmJ5ee76TN","display_text_range":[0,82],"source":"\u003ca href=\"https:\/\/dlvrit.com\/\" rel=\"nofollow\"\u003edlvr.it\u003c\/a\u003e","truncated":false,"in_reply_to_status_id":null,"in_reply_to_status_id_str":null,"in_reply_to_user_id":null,"in_reply_to_user_id_str":null,"in_reply_to_screen_name":null,"user":{"id":18913509,"id_str":"18913509","name":"Walid Muhammad","screen_name":"walidmrealtor","location":"Charlotte, NC","url":"https:\/\/walidmrealtor.com","description":"Realtor | Charlotte NC Real Estate Broker | This City is what it is because our citizens are what they are \u2014 Plato | https:\/\/walidmrealtor.com","translator_type":"none","protected":false,"verified":false,"followers_count":35014,"friends_count":952,"listed_count":1271,"favourites_count":10502,"statuses_count":215843,"created_at":"Mon Jan 12 20:15:27 +0000 2009","utc_offset":null,"time_zone":null,"geo_enabled":false,"lang":"en","contributors_enabled":false,"is_translator":false,"profile_background_color":"131516","profile_background_image_url":"http:\/\/abs.twimg.com\/images\/themes\/theme14\/bg.gif","profile_background_image_url_https":"https:\/\/abs.twimg.com\/images\/themes\/theme14\/bg.gif","profile_background_tile":true,"profile_link_color":"7C7190","profile_sidebar_border_color":"FFFFFF","profile_sidebar_fill_color":"334366","profile_text_color":"33FF66","profile_use_background_image":true,"profile_image_url":"http:\/\/pbs.twimg.com\/profile_images\/784868625681379328\/cJrVjf1q_normal.jpg","profile_image_url_https":"https:\/\/pbs.twimg.com\/profile_images\/784868625681379328\/cJrVjf1q_normal.jpg","profile_banner_url":"https:\/\/pbs.twimg.com\/profile_banners\/18913509\/1523018275","default_profile":false,"default_profile_image":false,"following":null,"follow_request_sent":null,"notifications":null},"geo":null,"coordinates":null,"place":null,"contributors":null,"is_quote_status":false,"quote_count":0,"reply_count":0,"retweet_count":0,"favorite_count":0,"entities":{"hashtags":[],"urls":[{"url":"https:\/\/t.co\/gkFIJM5xtQ","expanded_url":"http:\/\/j.mp\/2DAlRtw","display_url":"j.mp\/2DAlRtw","indices":[49,72]}],"user_mentions":[],"symbols":[],"media":[{"id":1064841307653210113,"id_str":"1064841307653210113","indices":[83,106],"media_url":"http:\/\/pbs.twimg.com\/media\/DscThwzVAAEZwQ1.jpg","media_url_https":"https:\/\/pbs.twimg.com\/media\/DscThwzVAAEZwQ1.jpg","url":"https:\/\/t.co\/tmJ5ee76TN","display_url":"pic.twitter.com\/tmJ5ee76TN","expanded_url":"https:\/\/twitter.com\/walidmrealtor\/status\/1064841310593372161\/photo\/1","type":"photo","sizes":{"small":{"w":680,"h":453,"resize":"fit"},"thumb":{"w":150,"h":150,"resize":"crop"},"medium":{"w":1200,"h":799,"resize":"fit"},"large":{"w":1200,"h":799,"resize":"fit"}}}]},"extended_entities":{"media":[{"id":1064841307653210113,"id_str":"1064841307653210113","indices":[83,106],"media_url":"http:\/\/pbs.twimg.com\/media\/DscThwzVAAEZwQ1.jpg","media_url_https":"https:\/\/pbs.twimg.com\/media\/DscThwzVAAEZwQ1.jpg","url":"https:\/\/t.co\/tmJ5ee76TN","display_url":"pic.twitter.com\/tmJ5ee76TN","expanded_url":"https:\/\/twitter.com\/walidmrealtor\/status\/1064841310593372161\/photo\/1","type":"photo","sizes":{"small":{"w":680,"h":453,"resize":"fit"},"thumb":{"w":150,"h":150,"resize":"crop"},"medium":{"w":1200,"h":799,"resize":"fit"},"large":{"w":1200,"h":799,"resize":"fit"}}}]},"favorited":false,"retweeted":false,"possibly_sensitive":false,"filter_level":"low","lang":"en","timestamp_ms":"1542712926897"}
+
+
+
+
+Install ElasticSearch:
+
+Install at: /usr/share/elasticsearch
+Config File at : /etc/elasticsearch/
+Init Script at: /etc/init.d/elasticsearch/
+
+Start/STOP: sudo systemctl enable elasticsearch.service
+sudo service elasticsearch start
+sudo service elasticsearch stop
+curl -XGET http://localhost:9200
+
+
+Index: Database
+TYPE/Mapping===> Table
+Document ==>ROW 
+Field ==>Columns
+Mapping ==>Schema 
+
+
+http://localhost:9200/schools
+Method: put (Create Index)
+
+Index
+|
+|
+Type
+|
+|
+Document
+GET:
+
+curl -XGET localhost:9200/classes/class/1
+
+curl -XPOST localhost:9200/classes/class/1 -d '{XXxx}'
+
+curl -XPUT localhost:9200/classes/class/1 -d '{xxx}'
+
+curl -XDELETE locahost:9200/classes/class/1
+
+
+classes?pretty ==>Looks and Feel Good in CURL CMD
+
+
+#######################################
+creating Index: USE PUT
+
+PUT
+localhost:9200/classes
+OUTPUT: 
+{
+"acknowledged": true,
+"shards_acknowledged": true,
+"index": "classes"
+}
+#######################################
+Check the Index : Then Use GET
+GET: localhost:9200/classes
+OUTPUT: 
+{
+"classes": {
+"aliases": { },
+"mappings": { },
+"settings": {
+"index": {
+"creation_date": "1542735535095",
+"number_of_shards": "5",
+"number_of_replicas": "1",
+"uuid": "EbCLe3CxToCfp0WwBNvUbQ",
+"version": {
+"created": "6000099"
+},
+"provided_name": "classes"
+}
+}
+}
+}
+##############################################################################
+POST:
+localhost:9200/classes/ds/1
+Here classes : Index(Database)
+       ds: type(Table)
+	   1 :Row
+	   Request BODY :
+	     {
+		 "title","Hello welcome",
+		 "name","Hadoop Opes"
+		 }
+Response:
+{
+"_index": "classes",
+"_type": "ds",
+"_id": "15",
+"_version": 1,
+"result": "created",
+"_shards": {
+"total": 2,
+"successful": 1,
+"failed": 0
+},
+"_seq_no": 1,
+"_primary_term": 1
+}
+
+		 
+##############################################################################
+POST:
+Updated New Record:
+localhost:9200/classes/ds/1
+Updated Example:
+"_index": "classes",
+"_type": "ds",
+"_id": "13",
+"_version": 2,
+"result": "updated",
+"_shards": {
+"total": 2,
+"successful": 1,
+"failed": 0
+},
+"_seq_no": 3,
+"_primary_term": 1
+}		 
+##############################################################################
+
+Document From File
+
+POST: localhost:9200/classes/class/1/ -d @Oneclass.json
+
+##############################################################################
+
+GET the entire Database
+GET :
+localhost:9200/classes 
+
+UPDATE:
+
+localhost:9200/schools/1/_update
+
+
+
+
+PUT Command :
+/twitter
+
+{
+    "settings" : {
+        "index" : {
+            "number_of_shards" : 3, 
+            "number_of_replicas" : 2 
+        }
+    }
+}
+
+
+
+GET Command:
+/twitter
+
+POST :
+/anji/_doc/1
+{
+    "counter" : 1,
+    "tags" : ["red"],
+    "counter1" : 1,
+    "counter2" : 2,
+    "counter3" : 3
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
