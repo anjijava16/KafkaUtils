@@ -1,5 +1,10 @@
 
-URL : Kafka Documenation : https://kafka.apache.org/documentation/
+# URL : Kafka Documenation : 
+https://kafka.apache.org/documentation/
+
+# URL: Kafka Confluent (Adv Kafka)
+https://docs.confluent.io/current/index.html 
+http://cloudurable.com/blog/kafka-ecosystem/index.html
 
 
 https://www.learningjournal.guru/courses/kafka/kafka-foundation-training/
